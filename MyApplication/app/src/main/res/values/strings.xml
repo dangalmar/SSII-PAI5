@@ -1,3 +1,14 @@
 <resources>
     <string name="app_name">My Application</string>
+    <string name="camas">Camas</string>
+    <string name="sillas">Sillas</string>
+    <string name="mesas">Mesas</string>
+    <string name="sillones">Sillones</string>
+    <string name="accion">Realice el pedido que desee </string>
+    <string name="usuario1">Usuario 1 </string>
+    <string name="usuario2">Usuario 2 </string>
+    <string name="usuario3">Usuario 3 </string>
+    <string name="textoInput">Introduzca un número de 0 a 300</string>
+    <string name="enviar">Enviar pedido</string>
+
 </resources>
