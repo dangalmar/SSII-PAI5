@@ -333,3 +333,7 @@ public class JavaSecurityMethods {
 
     }
 }
+
+public static void main(String[] args) {
+
+}
