@@ -57,11 +57,11 @@ public class Server {
                     boolean verified = verificaFirmaDigital(values, firma, str_firma);
                     // Divide los valores enviados por el cliente
                     String[] allvalues = values.split(",");
-                    Integer camas =     Integer.parseInt(allvalues[0]);
-                    Integer mesas =     Integer.parseInt(allvalues[1]);
-                    Integer sillas =    Integer.parseInt(allvalues[2]);
-                    Integer sillones =  Integer.parseInt(allvalues[3]);
-                    Integer usuario =   Integer.parseInt(allvalues[4]);
+                    Integer camas = Integer.parseInt(allvalues[0]);
+                    Integer mesas = Integer.parseInt(allvalues[1]);
+                    Integer sillas = Integer.parseInt(allvalues[2]);
+                    Integer sillones = Integer.parseInt(allvalues[3]);
+                    Integer usuario = Integer.parseInt(allvalues[4]);
 
                     // Inserta los datos en la base de datos SQLite
                     saveToDatabase(mesas, sillas, sillones, camas, usuario, verified);
@@ -118,8 +118,7 @@ public class Server {
 
     public static void saveToDatabase(Integer mesas, Integer sillas, Integer sillones, Integer camas, Integer usuario, boolean verified) {
         String sql = "INSERT INTO pedidos (mesas, sillas, sillones, camas, usuario, verificado) VALUES (?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DriverManager.getConnection(DATABASE_URL);
-            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DriverManager.getConnection(DATABASE_URL); PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, mesas);
             pstmt.setInt(2, sillas);
             pstmt.setInt(3, sillones);
@@ -134,8 +133,7 @@ public class Server {
     }
 
     private static void createDatabase() {
-        try (Connection conn = DriverManager.getConnection(DATABASE_URL);
-             Statement stmt = conn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection(DATABASE_URL); Statement stmt = conn.createStatement()) {
             // Crea la tabla pedidos si no existe
             String sql = "CREATE TABLE IF NOT EXISTS pedidos (\n"
                     + "    id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
@@ -161,5 +159,3 @@ public class Server {
     }
 
 }
-
-

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.res.Resources;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.StrictMode;
@@ -18,10 +19,13 @@ import android.widget.Toast;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.net.Socket;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -34,6 +38,9 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.spec.PKCS8EncodedKeySpec;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import javax.net.SocketFactory;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -61,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
     // Setup Server information
     protected static String server = "192.168.1.133";
     protected static int port = 7070;
+    private String keyMac = "108079546209274483481442683641105470668825844172663843934775892731209928221929";
     protected static SSLSocket conexion;
 
     protected static String publicKey1 = "";
@@ -124,10 +132,10 @@ public class MainActivity extends AppCompatActivity {
                 Integer.parseInt(sillones.trim()) > 300){
             Toast.makeText(getApplicationContext(), "Por favor seleccione valores por debajo de 300", Toast.LENGTH_SHORT).show();
         } else {
-            final int numSab = Integer.parseInt(camas.trim());
-            final int numCam = Integer.parseInt(mesas.trim());
-            final int numMes = Integer.parseInt(sillas.trim());
-            final int numSil = Integer.parseInt(sillones.trim());
+            final int camasPedidas = Integer.parseInt(camas.trim());
+            final int mesasPedidas = Integer.parseInt(mesas.trim());
+            final int sillasPedidas = Integer.parseInt(sillas.trim());
+            final int sillonesPedidos = Integer.parseInt(sillones.trim());
             new AlertDialog.Builder(this)
                     .setTitle("Enviar")
                     .setMessage("Se va a proceder al envio")
@@ -138,17 +146,64 @@ public class MainActivity extends AppCompatActivity {
                                 @SuppressLint("ResourceType")
                                 public void onClick(DialogInterface dialog, int whichButton) {
                                     try{
-                                        Signature firma = Signature.getInstance("SHA256withRSA");
-                                        String dataNumbers = numSab + "-" + numCam + "-" + numMes + "-" + numSil;
+                                        final JSONObject messageJson = new JSONObject();
+                                        messageJson.put("camas", camasPedidas);
+                                        messageJson.put("mesas", mesasPedidas);
+                                        messageJson.put("sillas", sillasPedidas);
+                                        messageJson.put("sillones", sillonesPedidos);
+                                        messageJson.put("clientNumber", inputUsuario);
+                                        final String message = messageJson.toString();
 
-                                        int index = grupoInputsUsuarios.indexOfChild(findViewById(grupoInputsUsuarios.getCheckedRadioButtonId()));
-                                        PrivateKey privateKey = getPrivateKey(index);
-                                        firma.initSign(privateKey);
-                                        firma.update(dataNumbers.getBytes());
-                                        byte[] firma_ = firma.sign();
-                                        String firma_base64 = Base64.encodeToString(firma_, Base64.NO_WRAP);
-                                        String message = dataNumbers + "," + firma_base64 + "," + index;
-                                        startClient(message);
+                                        final String messageSign = generateMessageSign(message);
+
+                                        AsyncTask.execute(new Runnable() {
+                                            @Override
+                                            public void run() {
+
+                                                try {
+
+                                                    SSLSocketFactory socketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+                                                    SSLSocket socket = (SSLSocket) socketFactory.createSocket(server, port);
+
+                                                    String nonce = generateNonce(16);
+
+                                                    String messageToHmac = message+nonce;
+                                                    String hmac = calcHmacSha256(keyMac.getBytes("UTF-8"),(messageToHmac).getBytes("UTF-8"));
+
+                                                    JSONObject dataJson = new JSONObject();
+                                                    dataJson.put("message", messageJson);
+                                                    dataJson.put("messageSign", messageSign);
+                                                    dataJson.put("nonce", nonce);
+                                                    dataJson.put("hmac", hmac);
+
+                                                    String data = dataJson.toString();
+
+                                                    PrintWriter output = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
+                                                    output.println(data);
+                                                    output.flush();
+
+                                                    BufferedReader input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                                                    String response = input.readLine();
+                                                    if(response!=null && !response.isEmpty() && response.contains("OK")) {
+                                                        Toast.makeText(MainActivity.this, "Petición enviada correctamente", Toast.LENGTH_SHORT).show();
+                                                    } else {
+                                                        Toast.makeText(MainActivity.this, "Ha ocurrido un problema", Toast.LENGTH_SHORT).show();
+                                                    }
+
+                                                    // close connection
+                                                    output.close();
+                                                    input.close();
+                                                    socket.close();
+
+                                                    // Error -> Show an Error Message
+                                                } catch (Exception e) {
+                                                    // e.printStackTrace();
+                                                    Toast.makeText(MainActivity.this, "Ha ocurrido un problema", Toast.LENGTH_SHORT).show();
+                                                }
+                                            }
+                                        });
+
+
                                     } catch (NoSuchAlgorithmException | InvalidKeyException |
                                              SignatureException e) {
                                         e.printStackTrace();
@@ -185,65 +240,63 @@ public class MainActivity extends AppCompatActivity {
         return kf.generatePrivate(keySpecPKCS8);
     }
 
-    public void createKeyPair() throws Exception {
-        KeyPairGenerator keyParGenerator = KeyPairGenerator.getInstance("RSA");
-        keyParGenerator.initialize(2048);
-        KeyPair keyPair = keyParGenerator.generateKeyPair();
-        PublicKey publicKey = keyPair.getPublic();
-        PrivateKey privateKey = keyPair.getPrivate();
+    private static String generateMessageSign(String message) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        KeyPair kp = getRSAKeyPair();
+        PrivateKey pk = kp.getPrivate();
+
+        Signature sg = Signature.getInstance("SHA256withRSA");
+        sg.initSign(pk);
+        sg.update(message.getBytes());
+        byte[] firma = sg.sign();
+
+        return Base64.encodeToString(firma, Base64.DEFAULT);
     }
 
-    private void startClient(String message){
-        String ip = "http://10.0.2.2";
-        int puerto = 7071;
-        String socket = "http://10.0.2.2:7071";
-        try{
-            KeyStore keyStore = KeyStore.getInstance("BKS");
-            keyStore.load(getAssets().open("certs/server/server.bks"),
-                    "changeit".toCharArray());
+    public static KeyPair getRSAKeyPair() throws NoSuchAlgorithmException {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(2048);
+        return kpg.generateKeyPair();
+    }
 
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(keyStore, "changeit".toCharArray());
+    private String generateNonce(Integer size) {
 
-            KeyStore trustedStore = KeyStore.getInstance("BKS");
-            trustedStore.load(getAssets().open("certs/server/cacertserverbueno.bks"), "changeit"
-                    .toCharArray());
+        String AlphaNumericString = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                + "0123456789"
+                + "abcdefghijklmnopqrstuvxyz";
 
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(trustedStore);
+        StringBuilder sb = new StringBuilder(size);
 
-            SSLContext context = SSLContext.getInstance("TLS");
-            TrustManager[] tM = tmf.getTrustManagers();
-            KeyManager[] kM = kmf.getKeyManagers();
-            context.init(kM, tM, null);
+        for (int i = 0; i < size; i++) {
+            int index = (int)(AlphaNumericString.length() * Math.random());
+            sb.append(AlphaNumericString.charAt(index));
+        }
 
-            SSLSocketFactory factory = context.getSocketFactory();
-            conexion = (SSLSocket) factory.createSocket(server, puerto);
-            conexion.startHandshake();
+        return sb.toString();
+    }
 
-            PrintWriter slide = new PrintWriter(
-                    new OutputStreamWriter(conexion.getOutputStream()),true);
+    static public String calcHmacSha256(byte[] secretKey, byte[] message) {
+        byte[] hmacSha256 = null;
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(secretKey, "HmacSHA256");
+            mac.init(secretKeySpec);
+            hmacSha256 = mac.doFinal(message);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to calculate hmac-sha256", e);
+        }
+        return bytesToHex(hmacSha256);
+    }
 
-            try {
-                System.out.println(message);
-                slide.println(message);
-                Toast.makeText(MainActivity.this, "Petición enviada correctamente", Toast.LENGTH_SHORT).show();
-            } catch (Exception e){
-                System.out.println(e);
+    private static String bytesToHex(byte[] hash) {
+        StringBuilder hexString = new StringBuilder(2 * hash.length);
+        for (int i = 0; i < hash.length; i++) {
+            String hex = Integer.toHexString(0xff & hash[i]);
+            if(hex.length() == 1) {
+                hexString.append('0');
             }
-            BufferedReader entrada = new BufferedReader(new InputStreamReader(conexion.getInputStream()));
-            String messagereceived = entrada.readLine();
-            Toast.makeText(getApplicationContext(), messagereceived, Toast.LENGTH_SHORT).show();
-
-
-            conexion.close();
+            hexString.append(hex);
         }
-        catch (Exception e){
-            System.out.println("error: " + e);
-            Toast.makeText(getApplicationContext(), "No se ha podido realizar una conexión con el servidor", Toast.LENGTH_SHORT).show();
-
-        }
+        return hexString.toString();
     }
-
 
 }
