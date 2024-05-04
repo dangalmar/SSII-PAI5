@@ -22,31 +22,36 @@ import androidx.appcompat.app.AppCompatActivity;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
-import java.security.KeyFactory;
+import java.security.KeyManagementException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
 import java.security.Signature;
 import java.security.SignatureException;
-import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
+import java.util.concurrent.TimeUnit;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import javax.net.SocketFactory;
-import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
 
@@ -66,10 +71,11 @@ public class MainActivity extends AppCompatActivity {
 
 
     // Setup Server information
-    protected static String server = "192.168.1.133";
+    protected static String server = "127.0.0.1";
     protected static int port = 7070;
     private String keyMac = "108079546209274483481442683641105470668825844172663843934775892731209928221929";
-    protected static SSLSocket conexion;
+    String sslPassword = "12345";
+    private String caPath = "";
 
     protected static String publicKey1 = "";
     protected static String privateKey1 = "";
@@ -162,6 +168,7 @@ public class MainActivity extends AppCompatActivity {
 
                                                 try {
 
+                                                    //SSLSocketFactory socketFactory = getSslSocketFactory();
                                                     SSLSocketFactory socketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
                                                     SSLSocket socket = (SSLSocket) socketFactory.createSocket(server, port);
 
@@ -195,9 +202,8 @@ public class MainActivity extends AppCompatActivity {
                                                     input.close();
                                                     socket.close();
 
-                                                    // Error -> Show an Error Message
                                                 } catch (Exception e) {
-                                                    // e.printStackTrace();
+                                                    e.printStackTrace();
                                                     Toast.makeText(MainActivity.this, "Ha ocurrido un problema", Toast.LENGTH_SHORT).show();
                                                 }
                                             }
@@ -217,27 +223,6 @@ public class MainActivity extends AppCompatActivity {
                     )
                     .setNegativeButton(android.R.string.no, null).show();
         }
-    }
-
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    public PrivateKey getPrivateKey(Integer i) throws Exception {
-        String keyString = "";
-        switch (i){
-            case 0:
-                keyString = privateKey1;
-                break;
-            case 1:
-                keyString = privateKey2;
-                break;
-            case 2:
-                keyString = privateKey3;
-                break;
-        }
-
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        PKCS8EncodedKeySpec keySpecPKCS8 =
-                new PKCS8EncodedKeySpec(java.util.Base64.getDecoder().decode(keyString));
-        return kf.generatePrivate(keySpecPKCS8);
     }
 
     private static String generateMessageSign(String message) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
@@ -299,4 +284,29 @@ public class MainActivity extends AppCompatActivity {
         return hexString.toString();
     }
 
+    private SSLSocketFactory getSslSocketFactory() throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException, KeyManagementException, IOException, CertificateException {
+        KeyStore ks = KeyStore.getInstance("JKS");
+
+        // get user password and file input stream
+        char[] password = new char[sslPassword.length()];
+        for (int i = 0; i < sslPassword.length(); i++) {
+            password[i] = sslPassword.charAt(i);
+        }
+
+        ClassLoader cl = this.getClass().getClassLoader();
+        InputStream stream = cl.getResourceAsStream(caPath);
+        ks.load(stream, password);
+        stream.close();
+
+        SSLContext sc = SSLContext.getInstance("TLS");
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+
+        kmf.init(ks, password);
+        tmf.init(ks);
+
+        sc.init(kmf.getKeyManagers(), tmf.getTrustManagers(),null);
+
+        return sc.getSocketFactory();
+    }
 }
