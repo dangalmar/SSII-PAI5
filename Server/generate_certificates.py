@@ -46,8 +46,8 @@ private_key_pem = private_key.private_bytes(
 cert_pem = cert.public_bytes(encoding=serialization.Encoding.PEM)
 
 # Escribir la clave privada y el certificado en archivos PEM
-with open('private_key.pem', 'wb') as f:
+with open('private_key3.pem', 'wb') as f:
     f.write(private_key_pem)
 
-with open('certificate.pem', 'wb') as f:
+with open('certificate3.pem', 'wb') as f:
     f.write(cert_pem)

@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.StrictMode;
 import android.text.TextUtils;
 import android.util.Base64;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.RadioButton;
@@ -30,6 +31,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyManagementException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -43,6 +45,7 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.concurrent.TimeUnit;
 
 import javax.crypto.Mac;
@@ -67,24 +70,18 @@ public class MainActivity extends AppCompatActivity {
     EditText inputSillas;
     EditText inputSillones;
     RadioGroup grupoInputsUsuarios;
-    RadioButton inputUsuario;
+    int inputUsuario;
 
 
     // Setup Server information
-    protected static String server = "127.0.0.1";
+    protected static String server = "10.0.2.2";
     protected static int port = 7070;
-    private String keyMac = "108079546209274483481442683641105470668825844172663843934775892731209928221929";
+    private String keyMac = "602538936278945789227338510671310720268497086123762351854019088246135254642085";
     String sslPassword = "12345";
     private String caPath = "";
-
-    protected static String publicKey1 = "";
-    protected static String privateKey1 = "";
-
-    protected static String publicKey2 = "";
-    protected static String privateKey2 = "";
-
-    protected static String publicKey3= "";
-    protected static String privateKey3 = "";
+    protected static String privateKey1 = "MIIEowIBAAKCAQEAnsx97A4Ss7l1IJ+06o9vY4r6UnwSlcoeiqm/FCDBaqmgaeWACR1cPbUfUO7UaRy2IncyFTUIzj3z04whUiCy+L2fEurNdzkuPnQTokfLtRb1w6KdwGy0x/06qBqgUU36jjQX2Vje435hz4EIrxuwQpl2/FcTXEH/FHvKKxeF17+si4iZWmRICuYZq+3zGIMe84Tm/l/CHtt7+QhFAg3j98yqlWC1HIBv+ES5FMk1L77Vcnm9/9SkBQSl0SRG8knbq6Ilu77YQTSNLdTdRsjpI6/Yr+pZTnBE4xsjbqAEuXhNi2ivHbIN5r/EcYfQ8C+A/fcR1VBDHZwEMibs6nNWdQIDAQABAoIBAA3eJ0ikNmKApmegQUeGTQCt8RkFlQZRkOPXwB3TYHpeo7Yrxy5eMVSB1637NXL6gWnQHzN2Ueik+DREyN707eKs69JWNA+FEr9JTTLYv0PD/gsRzZUxr4LGYBPj9pUzHXFdJkOiY1CnR4ZvqwdgmfHiMhLTNEsg+yENHUVj6zN0k96fL8Q8Zsz5KOqgDU9ePUMSd3dtfdRMdL9rReV9I9c2zkvoQFNA/6KDSeo++I0JrEz8DqnhFIyEw3jxQXJvao2QCV8MmTW0On6HsLTMIxhPoz3V3z4V5I9MSS8HtTerW/zpdBiGwa5hf1gE+4Cb0pCncxzEvde1slj84ILc1Y8CgYEA3NOjxm6HNZ/xGeS9RJqjjpoA3Va4PpxBSI0jZDc7O+YP/fhWEgLO7X7TcPBFDRpI77ed0FgcMwspZbU62CHWSjqHVSwYdtybEsIcpeVnZHObu3ahuSQWprk1DmNKcoRvASDcgSbTfJN///7lu3JF0TxXS9GhZXl1pUMxub+/UkcCgYEAuBefC+fYBBC0J8MsxCYW7bnxNQZaWTEsTZNszRzvgE+z/ed100YTzZjS2VChCLb1puHqDBnRn2srQiTaHQ7mXL8773Fml/edUg8MwgB/3z6wH6UTmZHaN6hZ785pw6uFa427/9uuNdjrZKQbcWFDNGp8bOGXpEqSrRcB6FUq02MCgYByYYVhUPrkAdaGjP6kPF0fjhGIlFSWyaTfCYwdaqZZ3k7GRA2BAsdgKOMoiquZn9XLpRYvRpREtDFbJ0Y1kUFH7Y0PxuldF+OTEcx4+ZxWYbN2pHocRd8duK0MqM11B7ffo7/TfeLpkhUo6kTglM4pFNI6yXiJ8SHI2kc1aWaWHQKBgDLwJkwPDNCjJpZSBRMJTxLcfoejiGBhoNaeUl63APZKF43L++hH3bbn8H+9NbHJnlNc83wBsOUhrEiTFd8wfkFvkNACWtb15wwLqgYMSVWmbOl0reWyW+VGqgwW22EPFs3Z3AlB6gRwT0H7vrQyq3vXczJVgbYuBEPst9RnrH/tAoGBAKjHb6RKBkgeSfUOhwFWrIFl9IE6RcWN1cc9t3u9ocwpjGO1oorSQeKYhz2KXmTW0IyFAGfHBeM55e9jdWJqHS1uaxj2Ii6XKnefd2HOiyePWfCqmpO5BO7/bcboyu3gshEAtRlii2vZzKMAaPmE7TXhANqO4xtCMZmO41H9WKBk";
+    protected static String privateKey2 = "MIIEpAIBAAKCAQEAxhP8nyNikmgkaDQmnncDFhfBd4FQOsPr6SBkjKlsetSutwdZCu6JQsTqZr80i+ZSCYwGP/SAZ2I7Gq5XL4YUqcCjHG8e5LauZIc9+y1u9j80YViFP+DLhJGs/UKErtR9CcKcgQ7El2SBDfbxTSyxH33uhkoycknDO/VuWlPvC9ruCQEXzPfyXBth0GYUxAwfdvxuHl2M41kBdY3qhXcwK1DDVfvDV7PEB//W/LeZFWLbIFTuqeBb4HYwscrwjmaULsC4NwTgf/rBpWyMMSv0P3rFEmhFPoiXKwOMJteImwXCp7F1PbYyLQpgvcCCshU6mIu/xp9jRCZtZehk9jtiHQIDAQABAoIBAC4RM+2nAyPdyKnbhyfPsg4PVFWA47HnIxTDDd+Q/8PJdyDmOpVKSO4YchOXYJcw59+Ei2eQa9SfifN4nJpW6rNYNBdG2L6EpiaHNakXNflbVclWFxd2Jp8cakk0kTs//ByrAE8bqikznLgsuI4kWMVkOndNBlKCST/GovWrE6uDxDjFBa07eK2nDWRMFHh924TClFDdsfSE65XhfyM+l8xyQbPCQpytAv/ZHppOlSzDNFP80b5gO4stcrobnbyGpB7BLXg5JggRb9tkA3Budu4oiaARusSsOlPaICfYqAs5EibwnR7dDypy7tEj7g5icy4XZVZp/vRp3o+aG0fYKMECgYEA9aFEb21zrZjEtLC/r36yQyD9hJEe5Zi/Vr8cG/yTOVds9JCPjEk37fgoMTQVEdSEGRTMzljpLBAZhRHOvxYa1djCpzlig/p5UIZK/onCy4fsHHoCUpBXBhd+gNrk7H3rJM09WnuzBu5JHqt4x852TZ7Q0Ibw8jL22j5bVd5V9DkCgYEAznDJJW35rAmmXwBAOzRy9AqDpb1yvWyuSkq7fTsqHntO9jUMK8mpSnENyhJy54mOOJpGoKYewj+qzjtFujfT4Oleo0qU66rm2wV4K+3agdMT2iHmDS1jMq7fTdd5AsVgzK33NfEr8slIvpfthF1ywqQpy7ZWYCntyVimgaQMhQUCgYEAmtuvb6jLs3iLG3gLgbMY5CWab8emeQ4SI7idGi/lCdPKh23Ucpd+wXMgs9SoK/OVzNJGRRnc98C2tiSB+gsPpB7iqdcN+zMg5Nml0lA8FWF+RH3PlQoXM2oAgXB/v3GrnCohMjimqAn243Ur0pyiDVHBSJaqtafX5cRGhR6FhlECgYBxvIvltkiHMy3ZS18X/1aSA7TyPIUZveXsgm33mgAjmRYw6ZsSCOHfZJgPS8jIre2QW9crrTpnFQK66scIyLdQQ+LjHjUb/iWAZ+wEb+AiBLP8Sw7fFbGAe/4FegBuuWYSfoojywLGmYUdlMDEW2PdvupUFNpT0uXyN4hNBp/rLQKBgQCZJpxQhen1mvalv2/yGipvNBMVvqhqcqjubpZ7LuKXWRkImv1RJBM2JV7qlmnEtUGfwNvnj9hbF1m1D6IHlgSy/46owJHQk8hI2RVvT+7MtEZDvQF+cGbg+TOXSJjR0BnTAd9W1j2qF6nuyW2TMdEnTpRZ4SO5mu/YSZjmIBxafQ==";
+    protected static String privateKey3 = "MIIEpAIBAAKCAQEAoxkMiQKgfBgQ9UQhpQKt74OMnsdr8j6FfFeh2YdP+BD/cDN05uA0vq0TIy4rqBKxZT2ypT1sDjSAxiwXpvanfjb0FSxsCtNAZAVeF+smAeUzBqNyuwABv4bkaH1GqTKJ1TQ4fGDHf31jqIC2TcwW9XdwQzKfhJocCahYjVZyX4RE9sm6ixCrLegbxKWud/KX3+cgUxveLyFBiBLmZU6bI0vBca4sNfUriEf9tkOK0k9ps1Bc67DUBDNWsqrrj2NgK7ZWscsxdnCrYHWOxSRS6+qfhK72eGAgSS8E4uOaVQTizpOXvEcokab5mepm/uxsrEGbfYNoHAR7FkdkCJMUFQIDAQABAoIBACcWys1Pht0W+4F86b9djAhac+peCz4Mw/tQGWdEKeNfV4kxm/P1ik6ktnB5EVd/22pTRiyaMvqYlMBqMuT+OphiXU9xzRcvGECglLOQ1RQhNYCCze2Ji+G2V6m/VJ8akLQ7hsowe7/PcoIhDxBIOLxt+sbwLBEgylV6NnbxYAoKDEL2HJmLA5pJM8mTG27dJlZLmCXnKYWdssoZKmSsnqkUaEivw2z8yAv6Tv1pJ5ps6Ue51Jy3NYRQFvZMNbQVfFJJnDtdI7UQyEtn/q1W7OMJ4uEdiwp1irHsA8WE4PnJ1mJTDBzL9t7xrscXCYbllTNdNOCIfZhbG0x+mHL1nyECgYEA2fBGwfIIqhiKTv3THAlqer8LFAPhnqNs5xT5iEfPFYkLzbPi3YToFMZU0L0tzoiu22uPXXFEcG5zdl41x8d6eBf+I3LNe1tcwfwTfP449nyR7fLdVqt1TmD7EvZuc5wBfq2ds+dqpG6RYxcNvmLWXtNUQy1/37YXat9JbUrk0C0CgYEAv5Tr6GLtOTXikOZURmqLnVuAp8W+su0ZvU2Y2KImsJYkOPWdmssPYuydDhu3f17rvtKyTrqPjqtqpapZAjOGhbxcYeizcCZAI82A43OK/AvhcGiHJ2uCFWAIsaJBo9n4xywA+2r8PQdA+p68P0pEHKnd6Ali9U6Xa6fcUyC93IkCgYBqLyqadk2IapqAsCT6pQ/PLGO+ZcG45FE8KbkGkE4yZOpuV/XyDj5xWMycQ4Ac//WKDNb2JSi+SuJQysgTRXrDJpV5Ogcp0jLYhPQN02N3nOwQ7mKvRqzJ+nB6Jb1c8Ka9zONocxk/cmu9xs64czmVTAvjCzkhi3vPY2lIKdRgJQKBgQCazp6WCKJCMX2jssr0n5GzlMXwTATdlmPPKQ3SN6zl0lzwveAdvenv+NysEs+DF9ONPbohjfUExxUFSxJjifkwxdUstJmSjQYVKDD3Gl17b6o6Z+yWePQDi7dauo8p9K9nWfJtNrUeJ2dlXLEmvz8snkKXBka1jE0lC94oOfPRaQKBgQCkK4noxmGmul/QMk9d54YfI924o8FhubRX4PrA1tqARpyWIQEv3M690PKLUd3zCcBivqApV+DUUgcrIUQquIJ2g8a18UHTlo8+mOikC8P8fzqBLdYxtoVxXhrsYFEspr4fAwqQvHsnJ+jrIz9PjC+d5mBbE/O01Az3gF2SbipjbA==";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,7 +106,7 @@ public class MainActivity extends AppCompatActivity {
         // Llama al listener del boton Enviar
         button.setOnClickListener(view -> {
             int radioId = grupoInputsUsuarios.getCheckedRadioButtonId();
-            inputUsuario = findViewById(radioId);
+            inputUsuario = grupoInputsUsuarios.indexOfChild(findViewById(grupoInputsUsuarios.getCheckedRadioButtonId()));
 
             camas = inputCamas.getText().toString();
             mesas = inputMesas.getText().toString();
@@ -160,7 +157,7 @@ public class MainActivity extends AppCompatActivity {
                                         messageJson.put("clientNumber", inputUsuario);
                                         final String message = messageJson.toString();
 
-                                        final String messageSign = generateMessageSign(message);
+                                        final String messageSign = generateMessageSign(message, getPrivateKey(inputUsuario));
 
                                         AsyncTask.execute(new Runnable() {
                                             @Override
@@ -169,8 +166,8 @@ public class MainActivity extends AppCompatActivity {
                                                 try {
 
                                                     //SSLSocketFactory socketFactory = getSslSocketFactory();
-                                                    SSLSocketFactory socketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
-                                                    SSLSocket socket = (SSLSocket) socketFactory.createSocket(server, port);
+                                                    SocketFactory socketFactory = (SocketFactory) SocketFactory.getDefault();
+                                                    Socket socket = (Socket) socketFactory.createSocket(server,port);
 
                                                     String nonce = generateNonce(16);
 
@@ -179,11 +176,14 @@ public class MainActivity extends AppCompatActivity {
 
                                                     JSONObject dataJson = new JSONObject();
                                                     dataJson.put("message", messageJson);
+                                                    dataJson.put("clientNumber", inputUsuario);
                                                     dataJson.put("messageSign", messageSign);
                                                     dataJson.put("nonce", nonce);
                                                     dataJson.put("hmac", hmac);
 
                                                     String data = dataJson.toString();
+
+                                                    Log.i("Data", data);
 
                                                     PrintWriter output = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
                                                     output.println(data);
@@ -225,9 +225,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private static String generateMessageSign(String message) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
-        KeyPair kp = getRSAKeyPair();
-        PrivateKey pk = kp.getPrivate();
+    private static String generateMessageSign(String message, PrivateKey pk) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
 
         Signature sg = Signature.getInstance("SHA256withRSA");
         sg.initSign(pk);
@@ -236,6 +234,29 @@ public class MainActivity extends AppCompatActivity {
 
         return Base64.encodeToString(firma, Base64.DEFAULT);
     }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    public static PrivateKey getPrivateKey(Integer i) throws Exception {
+        String keyString = "";
+        switch (i){
+            case 0:
+                keyString = privateKey1;
+                break;
+            case 1:
+                keyString = privateKey2;
+                break;
+            case 2:
+                keyString = privateKey3;
+                break;
+        }
+
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        PKCS8EncodedKeySpec keySpecPKCS8 =
+                new PKCS8EncodedKeySpec(java.util.Base64.getDecoder().decode(keyString));
+        PrivateKey privateKey = kf.generatePrivate(keySpecPKCS8);
+        return privateKey;
+    }
+
 
     public static KeyPair getRSAKeyPair() throws NoSuchAlgorithmException {
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
