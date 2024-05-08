@@ -1,11 +1,11 @@
 import logging
 import logging.config
 from logging.handlers import TimedRotatingFileHandler
-import conf
+import configuration
 
-DEBUG_MODE = conf.DEBUG_MODE
-PATH = conf.LOGS
-FAST_LOOP = conf.FAST_LOOP 
+DEBUG_MODE = configuration.CONFIGURED_DEBUG
+PATH = configuration.CONFIGURED_LOGS
+FAST_LOOP = configuration.CONFIGURED_FAST_LOOP 
 FORMATTER = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 
 file_logger = logging.getLogger('Report')

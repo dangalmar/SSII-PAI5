@@ -23,22 +23,22 @@ def insert_new_nonce(db, nonce):
     cur.execute("INSERT INTO nonces VALUES (?)", (nonce,))
     db.commit()
 
-def insert_no_attack(db):
-    insert_attack(db,'')
+def register_no_attack(db):
+    register_attack(db,'')
 
-def insert_reply_attack(db):
-    insert_attack(db, ATTACK_REPLY)
+def register_reply_attack(db):
+    register_attack(db, ATTACK_REPLY)
 
-def insert_integrity_attack(db):
-    insert_attack(db, ATTACK_INTEGRITY)
+def register_integrity_attack(db):
+    register_attack(db, ATTACK_INTEGRITY)
 
-def insert_brute_force_attack(db):
-    insert_attack(db, ATTACK_BRUTE_FORCE)
+def register_brute_force_attack(db):
+    register_attack(db, ATTACK_BRUTE_FORCE)
 
-def insert_wrong_sign(db):
-    insert_attack(db, ATTACK_WRONG_SIGN)
+def register_wrong_sign(db):
+    register_attack(db, ATTACK_WRONG_SIGN)
 
-def insert_attack(db, attackType):
+def register_attack(db, attackType):
     cur = db.cursor()
     cur.execute("INSERT INTO responses(crdate, attackType) VALUES (?, ?)", (datetime.datetime.now().timestamp(), attackType))
     db.commit()

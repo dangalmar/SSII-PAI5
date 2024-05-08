@@ -1,37 +1,42 @@
-import socket
-import json
-from hashlib import sha256
-import hmac
-import sqlite3
-import conf
-from custom_logger import warning, info
-from database import initialize_db, duplicated_nonce, insert_new_nonce, insert_no_attack, insert_reply_attack, insert_integrity_attack, insert_brute_force_attack, select_attacked, select_all_responses, insert_wrong_sign, ATTACK_INTEGRITY, ATTACK_REPLY, ATTACK_BRUTE_FORCE
-import datetime
-import ssl
-import os
 from Crypto.Signature import PKCS1_v1_5
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
-import base64
+from logger import warning
+from db import initialize_db, duplicated_nonce, insert_new_nonce, register_no_attack, register_reply_attack, register_integrity_attack, register_brute_force_attack, select_attacked, select_all_responses, register_wrong_sign, ATTACK_INTEGRITY, ATTACK_REPLY, ATTACK_BRUTE_FORCE
+from hashlib import sha256
 
-HOST = conf.SERVER_IP
-PORT = conf.SERVER_PORT
-DEBUG_MODE = conf.DEBUG_MODE
-ALWAYS_CORRECT = DEBUG_MODE and conf.ALWAYS_CORRECT
-FAST_LOOP = DEBUG_MODE and conf.FAST_LOOP
-SECRET = conf.SECRET
-SCAN_DIRECTORY = conf.SCAN_DIRECTORY
-REPORT_DIRECTORY = conf.REPORT_DIRECTORY
-FRECUENCY = conf.HOUR_FRECUENCY
+import base64
+import configuration
+import datetime
+import hmac
+import json
+import os
+import socket
+import sqlite3
+import ssl
+
+
+HOST_IP = configuration.CONFIGURED_SERVER_IP
+PORT = configuration.CONFIGURED_SERVER_PORT
+
+SECRET = configuration.CONFIGURED_SECRET
+CERT = configuration.CONFIGURED_CERT
+KEY = configuration.CONFIGURED_KEY
+
+SCAN_DIRECTORY = configuration.CONFIGURED_SCAN_DIRECTORY
+REPORT_DIRECTORY = configuration.CONFIGURED_REPORT_DIRECTORY
+FRECUENCY = configuration.CONFIGURED_HOUR_FRECUENCY
+
+DEBUG = configuration.CONFIGURED_DEBUG
+ALWAYS_CORRECT = DEBUG and configuration.CONFIGURED_ALWAYS_CORRECT
+FAST_LOOP = DEBUG and configuration.CONFIGURED_FAST_LOOP
+
 ENCODING = 'utf-8'
-CERT = conf.CERT
-KEY = conf.KEY
 NONCE_DB = 'nonce.db'
 
 
 class Server:
-    # 256 bits random number
-    key = 108079546209274483481442683641105470668825844172663843934775892731209928221929
+    key = 602538936278945789227338510671310720268497086123762351854019088246135254642085
 
     def __init__(self, host='127.0.0.1', port=7070, cert_file="./certificates/certificate.pem",
                  key_file="./certificates/private_key.pem"):
@@ -48,29 +53,25 @@ class Server:
         initialize_db(self.db)
 
     def run(self):
+        print("\nServidor inicializado...\n")
         while True:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as sock:
                 sock.bind((self.host, self.port))
-                print('Port:' + str(self.port))
+                print(f'Servidor conectado al puerto {self.port}')
                 sock.listen(10)
-
-                # UNCOMMENT FOR TLS
-                #with self.context.wrap_socket(sock, server_side=True) as ssock:
 
                 while True:
                     
-                    # UNCOMMENT FOR TLS
-                    # conn, addr = ssock.accept()
                     conn, addr = sock.accept()
                     with conn:
-                        if DEBUG_MODE:
-                            print('Connected by', addr)
+                        if DEBUG:
+                            print(f'Nueva conexión: {addr}')
                         while True:
                             data = conn.recv(1024)
 
                             if not data:
                                 break
-                            if DEBUG_MODE:
+                            if DEBUG:
                                 print(data)
 
                             loaded_data = json.loads(data)
@@ -94,31 +95,34 @@ class Server:
                             signature = PKCS1_v1_5.new(mkey).sign(messageEnc)
                             resultSignature = base64.b64encode(signature).decode()
                             
+                            bad_integrity = hmac != generated_hmac
+                            server_is_being_attacked = requests > 3
+                            server_cant_verify = messageSign != resultSignature
 
                             if more_nonces:
-                                warning(f'VERIFICATION FAILURE: Reply attack detected')
-                                insert_reply_attack(self.db)
+                                warning(f'VERIFICACIÓN FALLIDA: Reply attack detectado')
+                                register_reply_attack(self.db)
                                 response = {"RESPONSE": "Conection failed: This message have been duplicated"}
-                            elif hmac != generated_hmac:
-                                warning(f'VERIFICATION FAILURE: Integrity have been compromised')
-                                insert_integrity_attack(self.db)
+                            elif bad_integrity:
+                                warning(f'VERIFICACIÓN FALLIDA: La integridad ha sido comprometida')
+                                register_integrity_attack(self.db)
                                 response = {"RESPONSE": "Conection failed: Message integrity have been compromised"}
-                            elif requests > 3:
-                                warning(f'SERVER FAILURE: Server is being attacked. Please try later')
-                                insert_brute_force_attack(self.db)
+                            elif server_is_being_attacked:
+                                warning(f'ERROR DEL SERVIDOR: El servidor está siendo atacado, por favor intente más tarde')
+                                register_brute_force_attack(self.db)
                                 response = {"RESPONSE": "Conection failed: Server is being attacked"}
-                            elif messageSign != resultSignature:
-                                warning(f'SERVER FAILURE: Server could not verify the message sign')
-                                insert_wrong_sign(self.db)
+                            elif server_cant_verify:
+                                warning(f'ERROR DEL SERVIDOR: El servidor no puede verificar la firma del mensaje')
+                                register_wrong_sign(self.db)
                                 response = {"RESPONSE": "Wrong signature: Client and server sign are not the same"}
                             else:
                                 insert_new_nonce(self.db, nonce)
-                                insert_no_attack(self.db)
-                                warning(f'ACCEPTED: No problems detected')
+                                register_no_attack(self.db)
+                                warning(f'PETICIÓN ACEPTADA: La petición ha sido aceptada')
                                 response = {"RESPONSE": " PETICION OK"}
 
-                            if DEBUG_MODE:
-                                print(str(response))
+                            if DEBUG:
+                                print("Response:", str(response))
                             dumped_response = json.dumps(response)
                             conn.sendall(bytes(dumped_response, encoding=ENCODING))
 
@@ -129,18 +133,21 @@ class Server:
         thread_db = sqlite3.connect(NONCE_DB)
         now = datetime.datetime.now()
         file_name = now.strftime("%d_%m_%Y")
-        f = open(REPORT_DIRECTORY + '/report_' + file_name + '.txt','w')
-        f.write("\n--------------------------------------------------\n")
-        f.write("DAY " + now.strftime("%d %m %Y") + "\n")
+        f = open(REPORT_DIRECTORY + '/log_' + file_name + '.txt','w')
+        f.write("\n################################################\n")
+        f.write("Reporte del " + now.strftime("%d %m %Y") + "\n")
 
         since = datetime.datetime(now.year, now.month, now.day)
 
         month = datetime.timedelta(days=30)
         two_months = datetime.timedelta(days=60)
         three_months = datetime.timedelta(days=90)
+
+        # TODO Esto se puede hacer en un bucle
         p1 = since - three_months
         p2 = since - two_months
         p3 = since - month
+
         n_all1 = select_all_responses(thread_db, p1)
         n_reply1 = select_attacked(thread_db, ATTACK_REPLY,p1)
         n_failed_integrity1 = select_attacked(thread_db, ATTACK_INTEGRITY, p1)
@@ -170,7 +177,7 @@ class Server:
         elif (n_p3 == n_p1 & n_p3 == n_p2):
             trend = "0"
 
-        print('Before day')
+        print('Dia anterior')
 
         n_all = select_all_responses(thread_db, since)
         n_reply = select_attacked(thread_db, ATTACK_REPLY,since)
@@ -206,5 +213,5 @@ def generate_hmac(key, message, nonce):
 
 
 if __name__ == "__main__":
-    server = Server(HOST, PORT, CERT, KEY)
+    server = Server(HOST_IP, PORT, CERT, KEY)
     server.run()
