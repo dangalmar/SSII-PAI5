@@ -55,8 +55,6 @@ def client_thread(client_id):
     expected_response = {"RESPONSE": "Conection failed: Message integrity have been compromised"}
     if response == json.dumps(expected_response).encode('utf-8'):
         print(f"Client {client_id} - Integrity attack detected! Server responded as expected.")
-    else:
-        print(f"Client {client_id} - Test failed...")
 
 if __name__ == "__main__":
     threads = []
