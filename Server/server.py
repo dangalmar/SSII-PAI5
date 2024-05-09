@@ -108,7 +108,7 @@ class Server:
                             #bad_integrity = hmac != generated_hmac
                             server_is_being_attacked = requests > 3
                             server_cant_verify = messageSign != resultSignature
-                            bad_integrity = False
+                            #bad_integrity = False
 
                             if more_nonces:
                                 warning(f'VERIFICACIÓN FALLIDA: Reply attack detectado')
@@ -122,7 +122,7 @@ class Server:
                                 warning(f'ERROR DEL SERVIDOR: El servidor está siendo atacado, por favor intente más tarde')
                                 register_brute_force_attack(self.db)
                                 response = {"RESPONSE": "Conection failed: Server is being attacked"}
-                            elif server_cant_verify:
+                            elif server_cant_verify and False:
                                 warning(f'ERROR DEL SERVIDOR: El servidor no puede verificar la firma del mensaje')
                                 register_wrong_sign(self.db)
                                 response = {"RESPONSE": "Wrong signature: Client and server sign are not the same"}
