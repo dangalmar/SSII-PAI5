@@ -34,6 +34,8 @@ FAST_LOOP = DEBUG and configuration.CONFIGURED_FAST_LOOP
 ENCODING = 'utf-8'
 NONCE_DB = 'nonce.db'
 
+HOURS_UNTIL_RESET = 3
+MAX_REQUESTS = 3
 
 class Server:
     key = 602538936278945789227338510671310720268497086123762351854019088246135254642085
@@ -54,6 +56,8 @@ class Server:
 
     def run(self):
         print("\nServidor inicializado...\n")
+        requests = 0
+        last_refresh = datetime.datetime.now()
         while True:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as sock:
                 sock.bind((self.host, self.port))
@@ -84,12 +88,10 @@ class Server:
                             more_nonces = duplicated_nonce(self.db, nonce)
                             generated_hmac = generate_hmac(self.key, message, nonce)
 
-                            now = datetime.datetime.now()
-                            since = datetime.datetime(now.year, now.month, now.day)
-                            hour = datetime.timedelta(hours=4)
-                            moment = since - hour
-                            thread_db = sqlite3.connect(NONCE_DB)
-                            requests = select_all_responses(thread_db, moment)
+                            if datetime.datetime.now() >= last_refresh + datetime.timedelta(hours=HOURS_UNTIL_RESET):
+                                print("Resetting database")
+                                last_refresh = datetime.datetime.now()
+                                requests = 0
 
                             if (clientNumber == 0):
                                 file = open(os.path.abspath("./certificates/private_key1.pem"), "rb")
@@ -106,7 +108,8 @@ class Server:
                             resultSignature = base64.b64encode(signature).decode()
                             
                             #bad_integrity = hmac != generated_hmac
-                            server_is_being_attacked = requests > 3
+                            server_is_being_attacked = requests > MAX_REQUESTS
+                            print(requests)
                             server_cant_verify = messageSign != resultSignature
                             bad_integrity = False
 
@@ -121,7 +124,7 @@ class Server:
                             elif server_is_being_attacked:
                                 warning(f'ERROR DEL SERVIDOR: El servidor está siendo atacado, por favor intente más tarde')
                                 register_brute_force_attack(self.db)
-                                response = {"RESPONSE": "Conection failed: Server is being attacked"}
+                                response = {"RESPONSE": "Conection failed: Too many requests, please try again later"}
                             elif server_cant_verify and False:
                                 warning(f'ERROR DEL SERVIDOR: El servidor no puede verificar la firma del mensaje')
                                 register_wrong_sign(self.db)
@@ -131,6 +134,7 @@ class Server:
                                 register_no_attack(self.db)
                                 warning(f'PETICIÓN ACEPTADA: La petición ha sido aceptada')
                                 response = {"RESPONSE": " PETICION OK"}
+                                requests += 1 
 
                             if DEBUG:
                                 print("Response:", str(response))
