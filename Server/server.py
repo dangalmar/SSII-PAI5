@@ -108,7 +108,7 @@ class Server:
                             #bad_integrity = hmac != generated_hmac
                             server_is_being_attacked = requests > 3
                             server_cant_verify = messageSign != resultSignature
-                            #bad_integrity = False
+                            bad_integrity = False
 
                             if more_nonces:
                                 warning(f'VERIFICACIÓN FALLIDA: Reply attack detectado')

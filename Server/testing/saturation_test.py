@@ -5,7 +5,7 @@ import threading
 
 HOST_IP = '127.0.0.1'
 PORT = 7070
-NUM_CLIENTS = 100
+NUM_CLIENTS = 1000
 
 # Lista para almacenar los nonces generados
 used_nonces = []
