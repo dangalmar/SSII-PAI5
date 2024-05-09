@@ -4,6 +4,7 @@ from Crypto.PublicKey import RSA
 from logger import warning
 from db import initialize_db, duplicated_nonce, insert_new_nonce, register_no_attack, register_reply_attack, register_integrity_attack, register_brute_force_attack, select_attacked, select_all_responses, register_wrong_sign, ATTACK_INTEGRITY, ATTACK_REPLY, ATTACK_BRUTE_FORCE
 from hashlib import sha256
+from verify_message import verify_signature, validar_hash
 
 import base64
 import configuration
@@ -38,7 +39,7 @@ HOURS_UNTIL_RESET = 3
 MAX_REQUESTS = 3
 
 class Server:
-    key = 602538936278945789227338510671310720268497086123762351854019088246135254642085
+    key = "602538936278945789227338510671310720268497086123762351854019088246135254642085"
 
     def __init__(self, host='127.0.0.1', port=7070, cert_file="./certificates/certificate1.pem",
                  key_file="./certificates/private_key1.pem"):
@@ -86,38 +87,20 @@ class Server:
                             hmac = loaded_data["hmac"]
                             messageSign = loaded_data["messageSign"]
                             more_nonces = duplicated_nonce(self.db, nonce)
-                            generated_hmac = generate_hmac(self.key, message, nonce)
 
                             if datetime.datetime.now() >= last_refresh + datetime.timedelta(hours=HOURS_UNTIL_RESET):
                                 print("Resetting database")
                                 last_refresh = datetime.datetime.now()
                                 requests = 0
-
-                            if (clientNumber == 0):
-                                file = open(os.path.abspath("./certificates/private_key1.pem"), "rb")
-                                mkey = RSA.importKey(file.read())
-                            elif (clientNumber == 1):
-                                file = open(os.path.abspath("./certificates/private_key2.pem"), "rb")
-                                mkey = RSA.importKey(file.read())
-                            else:
-                                file = open(os.path.abspath("./certificates/private_key3.pem"), "rb")
-                                mkey = RSA.importKey(file.read())
                             
-                            messageEnc = SHA256.new(str(message).encode())
-                            signature = PKCS1_v1_5.new(mkey).sign(messageEnc)
-                            resultSignature = base64.b64encode(signature).decode()
-                            
-                            #bad_integrity = hmac != generated_hmac
                             server_is_being_attacked = requests > MAX_REQUESTS
                             print(requests)
-                            server_cant_verify = messageSign != resultSignature
-                            bad_integrity = False
 
                             if more_nonces:
                                 warning(f'VERIFICACIÓN FALLIDA: Reply attack detectado')
                                 register_reply_attack(self.db)
                                 response = {"RESPONSE": "Conection failed: This message have been duplicated"}
-                            elif bad_integrity:
+                            elif validar_hash(hmac, message, self.key, nonce) == False:
                                 warning(f'VERIFICACIÓN FALLIDA: La integridad ha sido comprometida')
                                 register_integrity_attack(self.db)
                                 response = {"RESPONSE": "Conection failed: Message integrity have been compromised"}
@@ -125,7 +108,7 @@ class Server:
                                 warning(f'ERROR DEL SERVIDOR: El servidor está siendo atacado, por favor intente más tarde')
                                 register_brute_force_attack(self.db)
                                 response = {"RESPONSE": "Conection failed: Too many requests, please try again later"}
-                            elif server_cant_verify and False:
+                            elif verify_signature(messageSign, message, clientNumber) == False:
                                 warning(f'ERROR DEL SERVIDOR: El servidor no puede verificar la firma del mensaje')
                                 register_wrong_sign(self.db)
                                 response = {"RESPONSE": "Wrong signature: Client and server sign are not the same"}
@@ -224,7 +207,7 @@ def generate_hmac(key, message, nonce):
     body = str(message) + nonce
     raw_body = body.encode(ENCODING)
     hashed = hmac.new(encoded_key, raw_body, sha256)
-    return hashed.hexdigest()
+    return hash
 
 
 if __name__ == "__main__":
