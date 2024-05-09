@@ -2,6 +2,7 @@ import socket
 import json
 import time
 import threading
+import random
 
 HOST_IP = '127.0.0.1'
 PORT = 7070
@@ -18,10 +19,17 @@ def send_message(message):
         return response
 
 def client_thread(client_id):
+    furniture = {
+        "camas": random.randint(1, 5),
+        "mesas": random.randint(1, 10),
+        "sillas": random.randint(1, 20),
+        "sillones": random.randint(1, 8)
+    }
+
     message_data = {
-        "message": f"Hello, server! I'm client {client_id}",
+        "message": furniture,
         "clientNumber": client_id,
-        "nonce": str(int(time.time() * 1000)),  # Generar un nonce único basado en el tiempo actual
+        "nonce": str(int(time.time() * 1000)),
         "hmac": "example_hmac",
         "messageSign": "example_signature"
     }
@@ -44,6 +52,11 @@ def client_thread(client_id):
     response = send_message(json_message)
     print(f"Client {client_id} - Response:", response.decode('utf-8'))
 
+    expected_response = {"RESPONSE": "Conection failed: Message integrity have been compromised"}
+    if response == json.dumps(expected_response).encode('utf-8'):
+        print(f"Client {client_id} - Integrity attack detected! Server responded as expected.")
+    else:
+        print(f"Client {client_id} - Test failed...")
 
 if __name__ == "__main__":
     threads = []

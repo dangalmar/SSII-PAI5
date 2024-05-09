@@ -19,7 +19,7 @@ if __name__ == "__main__":
     message_data = {
         "message": "Hello, server!",
         "clientNumber": 0,
-        "nonce": str(int(time.time() * 1000)),  # Generar un nonce único basado en el tiempo actual
+        "nonce": str(int(time.time() * 1000)),
         "hmac": "example_hmac",
         "messageSign": "example_signature"
     }

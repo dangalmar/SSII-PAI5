@@ -14,8 +14,13 @@ def send_message(message):
 
 if __name__ == "__main__":
     message_data = {
-        "message": "Hello, server!",
-        "clientNumber": 0,
+        "message": {
+            "camas": 10,
+            "mesas": 5,
+            "sillas": 20,
+            "sillones": 3
+        },
+        "clientNumber": 1,
         "nonce": str(int(time.time() * 1000)),
         "hmac": "example_hmac",
         "messageSign": "example_signature"
